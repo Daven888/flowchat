@@ -1,0 +1,42 @@
+# === Go ===
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/cmd/server/server
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Dependency directories
+vendor/
+
+# === Frontend ===
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# === Environment & Secrets ===
+.env
+.env.*
+*.local
+
+# === IDE & System ===
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# === Runtime ===
+*.log
+tmp/
+temp/
+
+# === Misc ===
+# Go workspace
+go.work

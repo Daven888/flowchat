@@ -1,0 +1,50 @@
+server:
+  port: 8080
+
+mysql:
+  host: 127.0.0.1
+  port: 3308
+  user: root
+  password: root
+  database: flowchat
+
+redis:
+  addr: 127.0.0.1:6380
+  password: ""
+  db: 0
+
+jwt:
+  secret: flowchat-secret
+  expire_hours: 24
+
+chat:
+  session_lock_ttl_seconds: 180
+  max_message_length: 4000
+
+ai:
+  providers:
+    openai_compatible:
+      type: openai_compatible
+      base_url: https://api.deepseek.com
+      api_key_env: DEEPSEEK_API_KEY
+
+models:
+  - name: mock
+    provider: mock
+    api_model: mock
+    enabled: true
+    max_context_messages: 10
+    timeout_seconds: 120
+    max_retries: 0
+
+  - name: deepseek-chat
+    provider: openai_compatible
+    api_model: deepseek-chat
+    enabled: true
+    max_context_messages: 10
+    timeout_seconds: 120
+    max_retries: 1
+
+sensitive_words:
+  - sensitive_word_1
+  - sensitive_word_2
