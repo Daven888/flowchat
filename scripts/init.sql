@@ -89,3 +89,28 @@ CREATE TABLE IF NOT EXISTS user_model_usage_stats (
     UNIQUE KEY uk_user_model_date (user_id, model_name, stat_date),
     INDEX idx_user_date (user_id, stat_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Chat session summaries table (context compression)
+CREATE TABLE IF NOT EXISTS chat_session_summaries (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    session_id BIGINT NOT NULL,
+    content MEDIUMTEXT NOT NULL,
+    last_message_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uk_session_id (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- User provider credentials table
+CREATE TABLE IF NOT EXISTS user_provider_credentials (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    provider_name VARCHAR(64) NOT NULL,
+    encrypted_api_key TEXT NOT NULL,
+    key_suffix VARCHAR(8) NOT NULL DEFAULT '',
+    status TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uk_user_provider (user_id, provider_name),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

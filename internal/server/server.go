@@ -12,14 +12,14 @@ import (
 )
 
 // Run starts the HTTP server with the given configuration and handlers.
-func Run(cfg *config.Config, authH *handler.AuthHandler, userH *handler.UserHandler, sessionH *handler.SessionHandler, messageH *handler.MessageHandler, chatH *handler.ChatHandler, callLogH *handler.CallLogHandler, usageStatH *handler.UsageStatHandler, exportH *handler.ExportHandler, modelH *handler.ModelHandler) error {
+func Run(cfg *config.Config, authH *handler.AuthHandler, userH *handler.UserHandler, sessionH *handler.SessionHandler, messageH *handler.MessageHandler, chatH *handler.ChatHandler, callLogH *handler.CallLogHandler, usageStatH *handler.UsageStatHandler, exportH *handler.ExportHandler, modelH *handler.ModelHandler, credentialH *handler.CredentialHandler) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(corsMiddleware())
 
-	router.Register(r, authH, userH, sessionH, messageH, chatH, callLogH, usageStatH, exportH, modelH, cfg.JWT.Secret)
+	router.Register(r, authH, userH, sessionH, messageH, chatH, callLogH, usageStatH, exportH, modelH, credentialH, cfg.JWT.Secret)
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	return r.Run(addr)

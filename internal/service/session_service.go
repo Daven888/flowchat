@@ -21,18 +21,23 @@ const (
 
 // SessionService handles chat session business logic.
 type SessionService struct {
-	repo *repository.SessionRepository
+	repo         *repository.SessionRepository
+	modelService *ModelService
 }
 
 // NewSessionService creates a new SessionService.
-func NewSessionService(repo *repository.SessionRepository) *SessionService {
-	return &SessionService{repo: repo}
+func NewSessionService(repo *repository.SessionRepository, modelSvc *ModelService) *SessionService {
+	return &SessionService{repo: repo, modelService: modelSvc}
 }
 
 // Create creates a new chat session for the given user.
 func (s *SessionService) Create(userID int64, title, modelName string) (*model.ChatSession, error) {
 	if modelName == "" {
 		return nil, ErrInvalidModelName
+	}
+
+	if _, err := s.modelService.GetModelConfig(modelName); err != nil {
+		return nil, err
 	}
 
 	if title == "" {

@@ -8,7 +8,7 @@ import (
 )
 
 // Register sets up all HTTP routes. Dependencies are injected through handlers.
-func Register(r *gin.Engine, authH *handler.AuthHandler, userH *handler.UserHandler, sessionH *handler.SessionHandler, messageH *handler.MessageHandler, chatH *handler.ChatHandler, callLogH *handler.CallLogHandler, usageStatH *handler.UsageStatHandler, exportH *handler.ExportHandler, modelH *handler.ModelHandler, jwtSecret string) {
+func Register(r *gin.Engine, authH *handler.AuthHandler, userH *handler.UserHandler, sessionH *handler.SessionHandler, messageH *handler.MessageHandler, chatH *handler.ChatHandler, callLogH *handler.CallLogHandler, usageStatH *handler.UsageStatHandler, exportH *handler.ExportHandler, modelH *handler.ModelHandler, credentialH *handler.CredentialHandler, jwtSecret string) {
 	r.GET("/ping", handler.Ping)
 
 	api := r.Group("/api/v1")
@@ -26,6 +26,13 @@ func Register(r *gin.Engine, authH *handler.AuthHandler, userH *handler.UserHand
 		{
 			user.GET("/profile", userH.Profile)
 			user.GET("/usage-stats", usageStatH.Get)
+
+			credentials := user.Group("/credentials")
+			{
+				credentials.GET("", credentialH.List)
+				credentials.PUT("/:provider", credentialH.Upsert)
+				credentials.DELETE("/:provider", credentialH.Delete)
+			}
 		}
 
 		chat := api.Group("/chat")
@@ -38,6 +45,7 @@ func Register(r *gin.Engine, authH *handler.AuthHandler, userH *handler.UserHand
 				sessions.GET("/:session_id", sessionH.Get)
 				sessions.DELETE("/:session_id", sessionH.Delete)
 				sessions.GET("/:session_id/messages", messageH.List)
+				sessions.GET("/:session_id/messages/search", messageH.Search)
 				sessions.POST("/:session_id/messages/stream", chatH.Stream)
 				sessions.GET("/:session_id/export/markdown", exportH.ExportMarkdown)
 			}

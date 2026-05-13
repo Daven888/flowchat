@@ -33,21 +33,25 @@ type StreamHandle struct {
 
 // ChatService orchestrates the streaming chat flow.
 type ChatService struct {
-	msgSvc      *MessageService
-	sessionSvc  *SessionService
-	modelSvc    *ModelService
-	lockManager *lock.Manager
-	lockTTL     int
+	msgSvc         *MessageService
+	sessionSvc     *SessionService
+	modelSvc       *ModelService
+	credentialSvc  *CredentialService
+	compressionSvc *CompressionService
+	lockManager    *lock.Manager
+	lockTTL        int
 }
 
 // NewChatService creates a new ChatService.
-func NewChatService(msgSvc *MessageService, sessionSvc *SessionService, modelSvc *ModelService, lockMgr *lock.Manager, lockTTL int) *ChatService {
+func NewChatService(msgSvc *MessageService, sessionSvc *SessionService, modelSvc *ModelService, credentialSvc *CredentialService, compressionSvc *CompressionService, lockMgr *lock.Manager, lockTTL int) *ChatService {
 	return &ChatService{
-		msgSvc:      msgSvc,
-		sessionSvc:  sessionSvc,
-		modelSvc:    modelSvc,
-		lockManager: lockMgr,
-		lockTTL:     lockTTL,
+		msgSvc:         msgSvc,
+		sessionSvc:     sessionSvc,
+		modelSvc:       modelSvc,
+		credentialSvc:  credentialSvc,
+		compressionSvc: compressionSvc,
+		lockManager:    lockMgr,
+		lockTTL:        lockTTL,
 	}
 }
 
@@ -72,9 +76,19 @@ func (s *ChatService) BeginStream(ctx context.Context, userID, sessionID int64, 
 		return nil, err
 	}
 
-	// Validate content
+	// Validate content (fail fast before credential check)
 	if content == "" {
 		return nil, ErrMessageContentEmpty
+	}
+
+	// Check user API key for non-mock providers (before lock to fail fast)
+	var apiKey string
+	if modelCfg.Provider != "mock" {
+		key, err := s.credentialSvc.GetDecrypted(userID, modelCfg.Provider)
+		if err != nil {
+			return nil, err
+		}
+		apiKey = key
 	}
 
 	// Generate request ID
@@ -101,35 +115,18 @@ func (s *ChatService) BeginStream(ctx context.Context, userID, sessionID int64, 
 		}
 	}()
 
-	// Save user message (completed)
-	_, err = s.msgSvc.SaveUserMessage(sessionID, userID, content)
+	// Save user message + assistant placeholder in a single transaction.
+	// Both succeed or both fail, preventing half-created state.
+	_, assistantMsg, err := s.msgSvc.SaveUserAndAssistantMessages(sessionID, userID, content)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create assistant placeholder (generating)
-	assistantMsg, err := s.msgSvc.CreateAssistantPlaceholder(sessionID, userID)
+	// Load context with compression if enabled and threshold exceeded.
+	// Falls back to recent N completed messages on summary failure.
+	providerMsgs, err := s.compressionSvc.GetContextWithSummary(ctx, sessionID, userID, modelCfg, p, apiKey)
 	if err != nil {
 		return nil, err
-	}
-
-	// Load context (last N completed messages from model config)
-	contextLimit := modelCfg.MaxContextMessages
-	if contextLimit <= 0 {
-		contextLimit = 10
-	}
-	messages, err := s.msgSvc.GetContextMessages(sessionID, userID, contextLimit)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build provider messages
-	providerMsgs := make([]provider.ProviderMessage, 0, len(messages))
-	for _, m := range messages {
-		providerMsgs = append(providerMsgs, provider.ProviderMessage{
-			Role:    m.Role,
-			Content: m.Content,
-		})
 	}
 
 	// Create timeout context for provider call
@@ -153,6 +150,7 @@ func (s *ChatService) BeginStream(ctx context.Context, userID, sessionID int64, 
 			RequestID: requestID,
 			ModelName: modelCfg.APIModel,
 			Messages:  providerMsgs,
+			APIKey:    apiKey,
 		})
 		if err == nil {
 			break

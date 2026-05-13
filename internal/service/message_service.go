@@ -39,6 +39,46 @@ func NewMessageService(messageRepo *repository.MessageRepository, sessionSvc *Se
 	}
 }
 
+// SaveUserAndAssistantMessages creates a user message (completed) and an assistant
+// placeholder (generating) in a single transaction. Both succeed or both fail.
+// This is preferred over calling SaveUserMessage + CreateAssistantPlaceholder separately.
+func (s *MessageService) SaveUserAndAssistantMessages(sessionID, userID int64, content string) (*model.ChatMessage, *model.ChatMessage, error) {
+	if content == "" {
+		return nil, nil, ErrMessageContentEmpty
+	}
+
+	// Validate session belongs to user and is active.
+	if _, err := s.sessionSvc.Get(userID, sessionID); err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now()
+	userMsg := &model.ChatMessage{
+		SessionID: sessionID,
+		UserID:    userID,
+		Role:      model.MessageRoleUser,
+		Content:   content,
+		Status:    model.MessageStatusCompleted,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	assistantMsg := &model.ChatMessage{
+		SessionID: sessionID,
+		UserID:    userID,
+		Role:      model.MessageRoleAssistant,
+		Content:   "",
+		Status:    model.MessageStatusGenerating,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := s.messageRepo.CreateUserAndAssistantMessagesTx(userMsg, assistantMsg); err != nil {
+		return nil, nil, err
+	}
+
+	return userMsg, assistantMsg, nil
+}
+
 // SaveUserMessage creates a user message with status=completed.
 // This is an internal method called by the streaming chat module.
 func (s *MessageService) SaveUserMessage(sessionID, userID int64, content string) (*model.ChatMessage, error) {
@@ -156,14 +196,59 @@ func (s *MessageService) UpdateAssistantMessage(messageID, sessionID, userID int
 	return s.messageRepo.FindByID(messageID)
 }
 
-// ListMessages returns all messages for a session, ordered by id ASC.
-func (s *MessageService) ListMessages(sessionID, userID int64) ([]model.ChatMessage, error) {
+// ListMessages returns paginated messages for a session, ordered by id ASC.
+// beforeID=0 means fetch the latest messages. Returns messages, has_more, and next_before_id.
+func (s *MessageService) ListMessages(sessionID, userID int64, beforeID int64, limit int) ([]model.ChatMessage, bool, int64, error) {
+	// Validate session belongs to user and is active
+	if _, err := s.sessionSvc.Get(userID, sessionID); err != nil {
+		return nil, false, 0, err
+	}
+
+	queryLimit := limit + 1
+
+	var raw []model.ChatMessage
+	var err error
+	if beforeID > 0 {
+		raw, err = s.messageRepo.FindBySessionIDBefore(sessionID, beforeID, queryLimit)
+	} else {
+		raw, err = s.messageRepo.FindBySessionIDLatest(sessionID, queryLimit)
+	}
+	if err != nil {
+		return nil, false, 0, err
+	}
+
+	hasMore := len(raw) > limit
+	if hasMore {
+		raw = raw[:limit]
+	}
+
+	// Reverse DESC to ASC for display
+	messages := reverseMessages(raw)
+
+	nextBeforeID := int64(0)
+	if len(messages) > 0 {
+		nextBeforeID = messages[0].ID
+	}
+
+	return messages, hasMore, nextBeforeID, nil
+}
+
+// SearchMessages searches messages within a session by keyword (MySQL LIKE).
+func (s *MessageService) SearchMessages(sessionID, userID int64, query string, limit int) ([]model.ChatMessage, error) {
 	// Validate session belongs to user and is active
 	if _, err := s.sessionSvc.Get(userID, sessionID); err != nil {
 		return nil, err
 	}
 
-	return s.messageRepo.FindBySessionID(sessionID)
+	return s.messageRepo.SearchBySessionID(sessionID, query, limit)
+}
+
+// reverseMessages reverses a slice of ChatMessage in place.
+func reverseMessages(msgs []model.ChatMessage) []model.ChatMessage {
+	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	}
+	return msgs
 }
 
 // GetAllCompletedMessages returns all completed messages for a session, ordered by id ASC.

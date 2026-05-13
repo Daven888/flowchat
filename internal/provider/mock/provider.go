@@ -19,7 +19,27 @@ func New() *Provider {
 
 // StreamChat generates a simulated reply based on the last user message,
 // streaming small chunks every 100ms. It respects context cancellation.
+// When the first message is a system message, it treats the request as a
+// summarization call and returns a short fixed summary.
 func (p *Provider) StreamChat(ctx context.Context, req provider.ChatRequest) (<-chan provider.ChatChunk, error) {
+	// Summarization mode: first message is a system prompt.
+	if len(req.Messages) > 0 && req.Messages[0].Role == "system" {
+		reply := "Summary: The user and assistant discussed various topics. Key points were identified. Pending items may remain."
+		completionTokens := estimateTokens(reply)
+
+		ch := make(chan provider.ChatChunk, 1)
+		go func() {
+			defer close(ch)
+			ch <- provider.ChatChunk{
+				Done:             true,
+				FinishReason:     "stop",
+				PromptTokens:     0,
+				CompletionTokens: completionTokens,
+			}
+		}()
+		return ch, nil
+	}
+
 	// Find the last user message
 	userMsg := ""
 	for i := len(req.Messages) - 1; i >= 0; i-- {

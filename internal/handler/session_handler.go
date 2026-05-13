@@ -47,6 +47,14 @@ func (h *SessionHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid model name"})
 			return
 		}
+		if errors.Is(err, service.ErrModelNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "model not found: " + req.ModelName})
+			return
+		}
+		if errors.Is(err, service.ErrModelDisabled) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "model is disabled: " + req.ModelName})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}

@@ -2,7 +2,6 @@ package service
 
 import (
 	"errors"
-	"os"
 
 	"github.com/Daven888/flowchat/internal/config"
 	"github.com/Daven888/flowchat/internal/provider"
@@ -30,8 +29,7 @@ func NewProviderRegistry(cfg *config.Config) *ProviderRegistry {
 	for name, pc := range cfg.AI.Providers {
 		switch pc.Type {
 		case "openai_compatible":
-			apiKey := os.Getenv(pc.APIKeyEnv)
-			r.providers[name] = op.New(pc.BaseURL, apiKey)
+			r.providers[name] = op.New(pc.BaseURL)
 		}
 	}
 

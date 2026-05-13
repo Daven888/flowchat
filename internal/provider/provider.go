@@ -12,6 +12,7 @@ type ChatRequest struct {
 	RequestID string
 	ModelName string
 	Messages  []ProviderMessage
+	APIKey    string
 }
 
 // ProviderMessage is a single message in the provider's format.

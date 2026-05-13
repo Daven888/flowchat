@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8081
 
 mysql:
   host: 127.0.0.1
@@ -23,10 +23,17 @@ chat:
 
 ai:
   providers:
-    openai_compatible:
+    deepseek:
       type: openai_compatible
       base_url: https://api.deepseek.com
-      api_key_env: DEEPSEEK_API_KEY
+      display_name: DeepSeek
+    siliconflow:
+      type: openai_compatible
+      base_url: https://api.siliconflow.cn/v1
+      display_name: SiliconFlow
+
+credential:
+  encryption_key_env: FLOWCHAT_CREDENTIAL_SECRET
 
 models:
   - name: mock
@@ -36,14 +43,31 @@ models:
     max_context_messages: 10
     timeout_seconds: 120
     max_retries: 0
+    context_compression:
+      enabled: true
+      max_messages_before_compress: 30
 
   - name: deepseek-chat
-    provider: openai_compatible
+    provider: deepseek
     api_model: deepseek-chat
     enabled: true
     max_context_messages: 10
     timeout_seconds: 120
     max_retries: 1
+    context_compression:
+      enabled: true
+      max_messages_before_compress: 30
+
+  - name: qwen2.5-7b
+    provider: siliconflow
+    api_model: Qwen/Qwen2.5-7B-Instruct
+    enabled: false
+    max_context_messages: 10
+    timeout_seconds: 120
+    max_retries: 1
+    context_compression:
+      enabled: true
+      max_messages_before_compress: 30
 
 sensitive_words:
   - sensitive_word_1

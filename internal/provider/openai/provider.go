@@ -17,22 +17,20 @@ import (
 // Provider implements ChatProvider for OpenAI-compatible APIs (e.g., DeepSeek).
 type Provider struct {
 	baseURL string
-	apiKey  string
 	client  *http.Client
 }
 
 // New creates a new OpenAI-compatible Provider.
-func New(baseURL, apiKey string) *Provider {
+func New(baseURL string) *Provider {
 	return &Provider{
 		baseURL: strings.TrimRight(baseURL, "/"),
-		apiKey:  apiKey,
 		client:  &http.Client{},
 	}
 }
 
 // StreamChat sends a streaming chat completion request and returns a channel of chunks.
 func (p *Provider) StreamChat(ctx context.Context, req provider.ChatRequest) (<-chan provider.ChatChunk, error) {
-	if p.apiKey == "" {
+	if req.APIKey == "" {
 		return nil, fmt.Errorf("openai provider: api key not configured")
 	}
 
@@ -56,7 +54,7 @@ func (p *Provider) StreamChat(ctx context.Context, req provider.ChatRequest) (<-
 	if err != nil {
 		return nil, err
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	httpReq.Header.Set("Authorization", "Bearer "+req.APIKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
 

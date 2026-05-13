@@ -9,14 +9,15 @@ import (
 
 // Config holds all configuration for the application.
 type Config struct {
-	Server         ServerConfig              `mapstructure:"server"`
-	MySQL          mysql.Config              `mapstructure:"mysql"`
-	Redis          redis.Config              `mapstructure:"redis"`
-	JWT            JWTConfig                 `mapstructure:"jwt"`
-	Chat           ChatConfig                `mapstructure:"chat"`
-	AI             AIConfig                  `mapstructure:"ai"`
-	Models         []ModelConfig             `mapstructure:"models"`
-	SensitiveWords []string                  `mapstructure:"sensitive_words"`
+	Server         ServerConfig     `mapstructure:"server"`
+	MySQL          mysql.Config     `mapstructure:"mysql"`
+	Redis          redis.Config     `mapstructure:"redis"`
+	JWT            JWTConfig        `mapstructure:"jwt"`
+	Chat           ChatConfig       `mapstructure:"chat"`
+	AI             AIConfig         `mapstructure:"ai"`
+	Credential     CredentialConfig `mapstructure:"credential"`
+	Models         []ModelConfig    `mapstructure:"models"`
+	SensitiveWords []string         `mapstructure:"sensitive_words"`
 }
 
 // ServerConfig holds HTTP server configuration.
@@ -36,6 +37,11 @@ type ChatConfig struct {
 	MaxMessageLength      int `mapstructure:"max_message_length"`
 }
 
+// CredentialConfig holds credential encryption settings.
+type CredentialConfig struct {
+	EncryptionKeyEnv string `mapstructure:"encryption_key_env"`
+}
+
 // AIConfig holds AI provider configurations.
 type AIConfig struct {
 	Providers map[string]ProviderConfig `mapstructure:"providers"`
@@ -43,20 +49,27 @@ type AIConfig struct {
 
 // ProviderConfig holds a single AI provider's connection settings.
 type ProviderConfig struct {
-	Type      string `mapstructure:"type"`
-	BaseURL   string `mapstructure:"base_url"`
-	APIKeyEnv string `mapstructure:"api_key_env"`
+	Type        string `mapstructure:"type"`
+	BaseURL     string `mapstructure:"base_url"`
+	DisplayName string `mapstructure:"display_name"`
+}
+
+// ContextCompressionConfig holds settings for long-session context compression.
+type ContextCompressionConfig struct {
+	Enabled                   bool `mapstructure:"enabled"`
+	MaxMessagesBeforeCompress int  `mapstructure:"max_messages_before_compress"`
 }
 
 // ModelConfig holds a single model's runtime configuration.
 type ModelConfig struct {
-	Name               string `mapstructure:"name"`
-	Provider           string `mapstructure:"provider"`
-	APIModel           string `mapstructure:"api_model"`
-	Enabled            bool   `mapstructure:"enabled"`
-	MaxContextMessages int    `mapstructure:"max_context_messages"`
-	TimeoutSeconds     int    `mapstructure:"timeout_seconds"`
-	MaxRetries         int    `mapstructure:"max_retries"`
+	Name               string                   `mapstructure:"name"`
+	Provider           string                   `mapstructure:"provider"`
+	APIModel           string                   `mapstructure:"api_model"`
+	Enabled            bool                     `mapstructure:"enabled"`
+	MaxContextMessages int                      `mapstructure:"max_context_messages"`
+	TimeoutSeconds     int                      `mapstructure:"timeout_seconds"`
+	MaxRetries         int                      `mapstructure:"max_retries"`
+	ContextCompression ContextCompressionConfig `mapstructure:"context_compression"`
 }
 
 // Load reads the YAML config file and unmarshals it into a Config struct.

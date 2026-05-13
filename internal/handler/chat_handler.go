@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/Daven888/flowchat/internal/event"
 	"github.com/Daven888/flowchat/internal/middleware"
 	"github.com/Daven888/flowchat/internal/model"
 	"github.com/Daven888/flowchat/internal/sensitive"
@@ -19,15 +20,14 @@ import (
 
 // ChatHandler handles the streaming chat endpoint.
 type ChatHandler struct {
-	chatService      *service.ChatService
-	callLogService   *service.CallLogService
-	usageStatService *service.UsageStatService
-	filter           *sensitive.Filter
+	chatService    *service.ChatService
+	eventPublisher *event.Publisher
+	filter         *sensitive.Filter
 }
 
 // NewChatHandler creates a new ChatHandler.
-func NewChatHandler(chatService *service.ChatService, callLogService *service.CallLogService, usageStatService *service.UsageStatService, filter *sensitive.Filter) *ChatHandler {
-	return &ChatHandler{chatService: chatService, callLogService: callLogService, usageStatService: usageStatService, filter: filter}
+func NewChatHandler(chatService *service.ChatService, eventPublisher *event.Publisher, filter *sensitive.Filter) *ChatHandler {
+	return &ChatHandler{chatService: chatService, eventPublisher: eventPublisher, filter: filter}
 }
 
 // StreamRequest is the request body for the streaming chat endpoint.
@@ -102,7 +102,7 @@ func (h *ChatHandler) Stream(c *gin.Context) {
 		handle.Cleanup()
 	}()
 
-	// Track streaming outcome for call log (written in defer)
+	// Track streaming outcome for the async event (published in defer).
 	var (
 		streamStatus   = model.CallLogStatusFailed
 		streamTokens   int
@@ -112,35 +112,35 @@ func (h *ChatHandler) Stream(c *gin.Context) {
 	)
 	defer func() {
 		finishedAt := time.Now()
-		latencyMs := finishedAt.Sub(handle.StartedAt).Milliseconds()
-		h.callLogService.Log(service.CreateCallLogParams{
-			RequestID:        handle.RequestID,
-			UserID:           uid,
-			SessionID:        sessionID,
-			Provider:         handle.ProviderName,
-			ModelName:        handle.ModelName,
-			Status:           streamStatus,
-			PromptTokens:     promptTokens,
-			CompletionTokens: streamTokens,
-			LatencyMs:        latencyMs,
-			ErrorCode:        streamStatus,
-			ErrorMessage:     streamErrorMsg,
-			FinishReason:     streamFinish,
-			StartedAt:        handle.StartedAt,
-			FinishedAt:       finishedAt,
-		})
 
-		h.usageStatService.Update(service.UpdateUsageParams{
-			UserID:           uid,
-			ModelName:        handle.ModelName,
-			Status:           streamStatus,
-			PromptTokens:     promptTokens,
-			CompletionTokens: streamTokens,
-		})
+		var errorCode string
+		if streamStatus != model.CallLogStatusSuccess {
+			errorCode = streamStatus
+		}
 
-		// Auto-generate session title on first successful completion
-		if streamStatus == model.CallLogStatusSuccess {
-			h.chatService.AutoGenerateTitle(sessionID, uid, content)
+		ev := &event.ModelCallFinishedEvent{
+			RequestID:          handle.RequestID,
+			UserID:             uid,
+			SessionID:          sessionID,
+			Provider:           handle.ProviderName,
+			ModelName:          handle.ModelName,
+			Status:             streamStatus,
+			PromptTokens:       promptTokens,
+			CompletionTokens:   streamTokens,
+			LatencyMs:          finishedAt.Sub(handle.StartedAt).Milliseconds(),
+			ErrorCode:          errorCode,
+			ErrorMessage:       streamErrorMsg,
+			FinishReason:       streamFinish,
+			StartedAt:          handle.StartedAt.UnixMilli(),
+			FinishedAt:         finishedAt.UnixMilli(),
+			TitleSourceContent: content,
+			RetryCount:         0,
+		}
+
+		if err := h.eventPublisher.Publish(ctx, ev); err != nil {
+			// Publishing failed — log but do NOT fail the SSE response.
+			writeSSEEvent(c.Writer, "error", map[string]string{"error": "internal: event publish failed"})
+			flusher.Flush()
 		}
 	}()
 
